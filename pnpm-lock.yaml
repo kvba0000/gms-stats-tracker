@@ -23,6 +23,9 @@ importers:
       jsdom:
         specifier: 24.1.0
         version: 24.1.0(canvas@3.0.0-rc2)
+      tsx:
+        specifier: 4.16.2
+        version: 4.16.2
       typescript:
         specifier: 5.5.3
         version: 5.5.3
@@ -36,9 +39,6 @@ importers:
       '@types/node':
         specifier: 20.14.11
         version: 20.14.11
-      tsx:
-        specifier: 4.16.2
-        version: 4.16.2
 
 packages:
 
