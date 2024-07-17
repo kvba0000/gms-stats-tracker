@@ -1,7 +1,7 @@
 import Stats from "./stats";
 import Express from "express"
 
-const SERVER_PORT: number = 8080
+const SERVER_PORT: number = parseInt(process.env["PORT"]) || 8080
 
 const stats = new Stats()
 const app = Express()
