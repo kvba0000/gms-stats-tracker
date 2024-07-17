@@ -4,8 +4,7 @@
   "description": "Discord embed thing for gamemaker server stats",
   "main": "src/index.ts",
   "scripts": {
-    "start": "tsx src",
-    "build": "tsc"
+    "start": "tsx src"
   },
   "keywords": [
     "gms",
