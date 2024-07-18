@@ -47,7 +47,10 @@ export default class Stats {
             }
         }
         
-        const { data: htmlData, status } = await axios.get(`https://gamemakerserver.com/en/games/${gameID}`)
+        const { data: htmlData, status } = await axios.get(`https://gamemakerserver.com/en/games/${gameID}`).catch(err => {
+            console.log(err, "\n\nError catched, new screenshots were NOT taken now.")
+            return {status: 500, data: null}
+        })
         if(status !== 200) return null;
 
         const dom = new JSDOM(htmlData)
@@ -61,17 +64,25 @@ export default class Stats {
         let imageData: Buffer;
         for (let screenshot of Array.from(screenshots)) {
             const id = screenshot.src.match(/\/thumb-screenshots\/(\d+)?/)[1]
-            const { data: imageArrBuf } = await axios.get(`https://gamemakerserver.com/screenshots/${id}/`, {responseType: "arraybuffer"})
+            const { data: imageArrBuf, status } = await axios.get(`https://gamemakerserver.com/screenshots/${id}/`, {responseType: "arraybuffer"}).catch(err => {
+                console.log(err, `\n\nError catched, could not fetch screenshot with id ${id}@${gameID}.`)
+                return {status: 500, data: null}
+            })
+            if(status !== 200) continue;
             imageData = Buffer.from(imageArrBuf, 'binary')
             writeFileSync(join(cachePath, `${i}.jpg`), imageData)
             i++;
         }
 
+        if(!imageData) return null;
         return imageData
     }
 
     async updateStats() {
-        const { data: status, status: code } = await axios.get<GameMakerStatusResponse>("https://gamemakerserver.com/dynamic/status.php")
+        const { data: status, status: code } = await axios.get<GameMakerStatusResponse>("https://gamemakerserver.com/dynamic/status.php").catch(err => {
+            console.log(err, "\n\nError catched, stats were NOT updated. Retrying in next 10 minutes.")
+            return {status: 500, data: null}
+        })
         if(code !== 200) return null;
 
         const games = status.status
