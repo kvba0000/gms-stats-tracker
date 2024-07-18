@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>By kvba0000</title>
+        <style>
+            @font-face {
+                font-family: 'RobotoCondensed';
+                src: url('/fonts/RobotoCondensed.ttf'); /*URL to font*/
+            }
+            :root {
+                --section-margin: 10px;
+            }
+
+
+            body {
+                font-family: 'RobotoCondensed', sans-serif;
+                background-color: #1d1d1d;
+                color: #b4b4b4;
+            }
+            a {
+                text-decoration: none;
+                color: #4b70ff !important;
+            }
+            button, input {
+                background-color: #2c2c2c;
+                color: #c7c7c7;
+                border: none;
+            }
+
+
+            .section > span {
+                display: block;
+            }
+            .section { 
+                margin-top: calc(var(--section-margin) / 2);
+                margin-bottom: calc(var(--section-margin) / 2);
+            }
+            .hidden {
+                display: none;
+            }
+            .unselectable {
+                user-select: none;
+            }
+
+
+            div#image-preview {
+                max-width: 400px;
+            }
+            div#image-preview > input#image-link,
+            div#image-preview > img#preview-img  {
+                width: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="section">
+            <h1 class="unselectable">Credits</h1>
+            <span>Created by <a href="https://github.com/kvba0000">kvba0000</a></span>
+            <span class="unselectable" style="font-size: 0.2em; color: #7f7f7f;">(i have too much free time lol)</span>
+            <span>Inspired by YTangeldog2145's player count tracker.</span>
+            <br>
+            <span>Arrow SVG by <a href="https://www.svgrepo.com/svg/511419/arrow-right-298">bypeople on SVGRepo</a></span>
+            <span>Font included: <a href="https://fonts.google.com/specimen/Roboto+Condensed">Roboto</a></span>
+        </div>
+        <div class="section">
+            <div class="section">
+                <h1 class="unselectable">Check it out yourself!</h1>
+                <span class="unselectable">Pick an <a href="https://gamemakerserver.com/en/games/">ID of a game</a> that will be used for image!</span>
+                <form action="/stat" method="get">
+                    <input placeholder="ID of a game" name="id" type="number">
+                    <button name="submit" type="submit">Let me check!</button>
+                </form>
+            </div>
+            <div class="section hidden" id="image-preview">
+                <img id="preview-img" src="" alt="Preview" /><br>
+                <input id="image-link" readonly>
+                <sub style="color: #7f7f7f;" class="unselectable">(click to copy)</sub>
+            </div>
+        </div>
+        <script>
+            const imagePreview = document.querySelector("#image-preview")
+            const previewImage = imagePreview.querySelector("img#preview-img")
+            const imageLink = imagePreview.querySelector("input#image-link")
+            const imagePreviewForm = document.querySelector('form[action="/stat"]')
+
+            imagePreviewForm.addEventListener("submit", (ev) => {
+                ev.preventDefault();
+                previewImage.src = "";
+                imagePreviewForm.setAttribute("disabled", "")
+
+                const form = new FormData(ev.target)
+                const id = form.get("id")
+                const url = (() => {
+                    const u = new URL(location)
+                    u.pathname = `/stat`
+                    u.search = `?id=${id}`
+                    return u.toString()
+                })()
+
+                previewImage.src = url;
+                imageLink.value = url;
+            })
+
+            imageLink.addEventListener("click", (ev) => {
+                const t = ev.target
+
+                t.select();
+                t.setSelectionRange(0,999999);
+                navigator.clipboard.writeText(t.value);
+            })
+
+            previewImage.addEventListener("error", () => {
+                imagePreviewForm.removeAttribute("disabled")
+                imagePreview.classList.add("hidden")
+            })
+            previewImage.addEventListener("load", () => {
+                imagePreviewForm.removeAttribute("disabled")
+                imagePreview.classList.remove("hidden")
+            })
+        </script>
+    </body>
+</html>

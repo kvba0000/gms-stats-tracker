@@ -4,3 +4,7 @@ export const formatNumber = (num: number, fixedNum = 1) => {
     if(n >= 1000) return (num / 1000).toFixed(fixedNum).replace(`.${"0".repeat(fixedNum)}`, "") + "K"
     return `${num}`
 }
+
+export const randomItem = (list = []) => {
+    return list[Math.floor(Math.random()*list.length)];
+}

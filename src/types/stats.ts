@@ -48,8 +48,3 @@ export type GameMakerStatusResponse = {
     loadHistory: number[],
     status: GameMakerStatusNodeStatus[]
 }
-
-export type Cache<T> = {
-    expire: number,
-    data: T
-}

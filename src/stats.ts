@@ -1,17 +1,18 @@
 import axios from "axios"
-import type { GameMakerStatusResponse, StatsSettings, Cache } from "./types/stats";
+import type { GameMakerStatusResponse, StatsSettings } from "./types/stats";
 import { JSDOM } from "jsdom"
 import { createCanvas, loadImage, registerFont } from "canvas";
 import Jimp = require("jimp");
-import { readFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
-import { formatNumber } from "./helper";
+import { formatNumber, randomItem } from "./helper";
 
-// Default stats user-agent
-axios.defaults.headers["user-agent"] = "gms-player-tracker / originally by @kvba0000 / kvbaxi.contact@gmail.com"
+// Default axios info
+axios.defaults.headers["user-agent"] = "gms-player-tracker / originally by @kvba0000 / github.com/kvba0000/gms-stats-tracker"
+axios.defaults.validateStatus = () => true
 
 // Fonts
-registerFont(join(__dirname, "fonts", "RobotoCondensed-VariableFont_wght.ttf"), {family: "Roboto"})
+registerFont(join(__dirname, "fonts", "RobotoCondensed.ttf"), {family: "Roboto"})
 
 
 const arrowIconData = {
@@ -22,39 +23,56 @@ const arrowIconData = {
 const shadowImgData = readFileSync(join(__dirname, "shadow.png"))
 
 
+const SCREENSHOT_CACHE_PATH = join(".", "cache", "screenshots")
+const STATS_CACHE_PATH = join(".", "cache", "stats")
+
 export default class Stats {
+    /** Settings */
     _settings: StatsSettings
+    /** If there's new data and should ignore cache */
+    shouldUseCache: Map<number, boolean> = new Map()
+    /** Last 10 playercounts of games */
     stats: Map<number, number[]> = new Map()
+    /** Names of games */
     games: Map<number, string> = new Map()
-    screenshotCache: Map<number, Cache<Buffer>> = new Map()
 
     async getGameScreenshot(gameID: number) {
-        if(this.screenshotCache.has(gameID)) {
-            const cache = this.screenshotCache.get(gameID)
-            if(cache.expire > Date.now()) return cache.data;
+        if(!existsSync(SCREENSHOT_CACHE_PATH)) mkdirSync(SCREENSHOT_CACHE_PATH, { recursive: true })
+        const cachePath = join(SCREENSHOT_CACHE_PATH, String(gameID))
+        if(existsSync(cachePath)) {
+            const cacheInfo = statSync(cachePath)
+            if(Date.now() < cacheInfo.mtimeMs + (3 * 60 * 60 * 1_000)) { // <- 3 hours
+                const files = readdirSync(cachePath);
+                return readFileSync(join(cachePath, randomItem(files)));
+            }
         }
         
-        const { data: htmlData } = await axios.get(`https://gamemakerserver.com/en/games/${gameID}`)
+        const { data: htmlData, status } = await axios.get(`https://gamemakerserver.com/en/games/${gameID}`)
+        if(status !== 200) return null;
+
         const dom = new JSDOM(htmlData)
     
-        const screenshot = dom.window.document.querySelector<HTMLImageElement>('img[src^="/thumb-screenshots/"]')
-        if(!screenshot) return null;
-    
-        const id = screenshot.src.match(/\/thumb-screenshots\/(\d+)?/)[1]
-        const imageUrl = `https://gamemakerserver.com/screenshots/${id}/`
-        const { data: imageArrBuf } = await axios.get(imageUrl, {responseType: "arraybuffer"})
+        const screenshots = dom.window.document.querySelectorAll<HTMLImageElement>('img[src^="/thumb-screenshots/"]')
+        if(screenshots.length === 0) return null;
 
-        const imageData = Buffer.from(imageArrBuf, 'binary')
-        this.screenshotCache.set(gameID, {
-            expire: Date.now() + (60 * 60 * 1_000),
-            data: imageData
-        })
+        if(!existsSync(cachePath)) mkdirSync(cachePath, { recursive: true })
+
+        let i: number = 0;
+        let imageData: Buffer;
+        for (let screenshot of Array.from(screenshots)) {
+            const id = screenshot.src.match(/\/thumb-screenshots\/(\d+)?/)[1]
+            const { data: imageArrBuf } = await axios.get(`https://gamemakerserver.com/screenshots/${id}/`, {responseType: "arraybuffer"})
+            imageData = Buffer.from(imageArrBuf, 'binary')
+            writeFileSync(join(cachePath, `${i}.jpg`), imageData)
+            i++;
+        }
+
         return imageData
     }
 
     async updateStats() {
-        const { data: status, status: code } = await axios.get<GameMakerStatusResponse>("https://gamemakerserver.com/dynamic/status.php", {validateStatus: () => true})
-        if(code !== 200) return;
+        const { data: status, status: code } = await axios.get<GameMakerStatusResponse>("https://gamemakerserver.com/dynamic/status.php")
+        if(code !== 200) return null;
 
         const games = status.status
             .map(s => s.games) // Only games
@@ -65,6 +83,7 @@ export default class Stats {
             if(!this.stats.has(id)) this.stats.set(id, [connected])
             else {
                 const stats = this.stats.get(id)
+                if(stats[stats.length-1] !== connected) this.shouldUseCache.set(id, false)
                 const newStats = [...stats, connected]
                 this.stats.set(id, newStats.slice(-10))
             }
@@ -76,6 +95,14 @@ export default class Stats {
         const stats = this.stats.get(gameID)
 
         if(!stats) return null;
+
+        if(!existsSync(STATS_CACHE_PATH)) mkdirSync(STATS_CACHE_PATH, { recursive: true })
+        const cachePath = join(STATS_CACHE_PATH, `${gameID}.jpg`)
+        const shouldUseCache = (this.shouldUseCache.get(gameID) || false) && existsSync(cachePath)
+        if(shouldUseCache) {
+            const cacheFile = readFileSync(cachePath)
+            return cacheFile
+        }
 
         const count = stats[stats.length-1] || 0
         const oldCount = stats[stats.length-2] || 0
@@ -91,7 +118,7 @@ export default class Stats {
             const screenshot = await (await Jimp.read(screenshotRaw))
                 .blur(5)
                 .brightness(-0.5)
-                .getBufferAsync(Jimp.MIME_PNG)
+                .getBufferAsync("image/jpeg")
             
             const screenshotImage = await loadImage(screenshot)
             ctx.drawImage(
@@ -171,8 +198,26 @@ export default class Stats {
             titleTextPos.x,
             titleTextPos.y
         )
+
+        // Previous Values
+        ctx.font = "30px Roboto"
+        ctx.fillStyle = "#cccccc"
+        const previousValues = `Previous values:\n( ${stats.slice(-6, -1).join(", ")} )`
+        const previousValuesSize = ctx.measureText(previousValues)
+        const previousValuesPos = {
+            x: (canvas.width / 2) - (previousValuesSize.actualBoundingBoxRight / 2),
+            y: canvas.height - (previousValuesSize.actualBoundingBoxDescent + 10)
+        }
+        ctx.fillText(
+            previousValues,
+            previousValuesPos.x,
+            previousValuesPos.y
+        )
     
-        return canvas.toBuffer("image/png")
+        const imgBuf = canvas.toBuffer("image/jpeg")
+        writeFileSync(cachePath, imgBuf)
+        this.shouldUseCache.set(gameID, true)
+        return imgBuf
     }
 
     constructor(settings: StatsSettings = {}) {
@@ -182,6 +227,6 @@ export default class Stats {
         };
 
         this.updateStats();
-        setInterval(this.updateStats, this._settings.updateInterval * 60 * 1000)
+        setInterval(this.updateStats.bind(this), this._settings.updateInterval * 60 * 1000)
     }
 }

@@ -1,3 +1,4 @@
+import { join } from "path";
 import Stats from "./stats";
 import Express from "express"
 
@@ -14,13 +15,16 @@ app.get("/stat", async (req, res) => {
     if(!img) return res.status(404).end();
 
     res.set('Cache-Control', 'public, max-age=180')
-        .contentType("png")
+        .contentType("image/jpeg")
         .status(200)
         .send(img)
         .end() 
 })
 
-app.use((req, res) => res.status(200).send(`Created by <a href="https://github.com/kvba0000">kvba0000 on GitHub</a>!`))
+app.use("/fonts", Express.static(join(__dirname, "fonts")))
+app.use("/", Express.static(join(__dirname, "public")))
+
+app.use((req, res) => res.redirect("/"))
 
 app.listen(SERVER_PORT, () => {
     console.log(`Server stated running at :${SERVER_PORT}!`)
